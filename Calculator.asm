@@ -163,12 +163,13 @@ match_word:
 parse_int:
     mov byte [parse_err], 0
     xor rax, rax
-    xor rbx, rbx         ; will hold sign flag: 0=+, 1=-
+    xor r10d, r10d                ; sign = 0 (positive)
+
     ; optional sign
     mov al, [rsi]
     cmp al, '-'
     jne .check_plus
-    mov bl, 1
+    mov r10b, 1                   ; sign = negative
     inc rsi
     jmp .after_sign
 .check_plus:
@@ -176,41 +177,43 @@ parse_int:
     jne .after_sign
     inc rsi
 .after_sign:
-    ; at least one digit
+
+    ; parse digits
     xor rax, rax
-    xor rdx, rdx
-    mov rcx, 0
+    xor rcx, rcx
 .digit_loop:
     mov al, [rsi]
-    cmp al, 0
-    je .end_digits
     cmp al, '0'
     jb .end_digits
     cmp al, '9'
     ja .end_digits
-    ; rax = rax*10 + (al-'0')
-    ; rax*10 = (rax<<3) + (rax<<1)
+
+    ; rax = rax*10 + (al - '0')
     mov r8, rax
     shl rax, 3
     lea rax, [rax + r8*2]
     sub al, '0'
-    movzx r9, al
-    add rax, r9
+    movzx edx, al                 ; use edx as temp (avoid rbx)
+    add rax, rdx
+
     inc rcx
     inc rsi
     jmp .digit_loop
+
 .end_digits:
-    cmp rcx, 0
-    jne .have_digits
+    test rcx, rcx
+    jnz .have_digits
     mov byte [parse_err], 1
     xor rax, rax
     ret
+
 .have_digits:
-    cmp bl, 0
-    je .ok
+    test r10b, r10b
+    jz .ok
     neg rax
 .ok:
     ret
+
 
 ; ---------------------------------------
 ; parse_op(rsi -> rsi advanced), returns AL=op, sets parse_err on error
